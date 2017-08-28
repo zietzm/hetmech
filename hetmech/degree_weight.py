@@ -30,13 +30,19 @@ def dwpc(graph, metapath, damping=0.5, sparse_threshold=0, use_general=False):
     use_general : bool
         if True, dwpc will call _dwpc_general_case and give a warning
         on metapaths which are categorized 'other' and 'long_repeat'.
-        If False, an exception is raised when such a metapath is given.
+        If False, an exception is raised when such a metapath is given,
+        and the general function will not be called.
 
     Returns
     -------
-    numpy.ndarray, numpy.ndarray, numpy.ndarray or
-    scipy.sparse.csc_matrix, float
-        row labels, column labels, the DWPC matrix, and the computation time
+    numpy.ndarray
+        row labels
+    numpy.ndarray
+        column labels
+    numpy.ndarray or scipy.sparse.csc_matrix
+        the DWPC matrix
+    float
+        the computation time
     """
     start_time = time.perf_counter()
     category_to_function = {'no_repeats': _dwpc_no_repeats,
