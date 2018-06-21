@@ -8,25 +8,25 @@ from hetmech.matrix import metaedge_to_adjacency_matrix
 import hetmech.degree_weight
 
 
-def degrees_to_degree_to_ind(degrees):
+def _degrees_to_degree_to_ind(degrees):
     degree_to_indices = dict()
     for i, degree in sorted(enumerate(degrees), key=lambda x: x[1]):
         degree_to_indices.setdefault(degree, []).append(i)
     return degree_to_indices
 
 
-def metapath_to_degree_dicts(graph, metapath):
+def _metapath_to_degree_dicts(graph, metapath):
     metapath = graph.metagraph.get_metapath(metapath)
     _, _, source_adj_mat = metaedge_to_adjacency_matrix(graph, metapath[0], dense_threshold=0.7)
     _, _, target_adj_mat = metaedge_to_adjacency_matrix(graph, metapath[-1], dense_threshold=0.7)
     source_degrees = source_adj_mat.sum(axis=1).flat
     target_degrees = target_adj_mat.sum(axis=0).flat
-    source_degree_to_ind = degrees_to_degree_to_ind(source_degrees)
-    target_degree_to_ind = degrees_to_degree_to_ind(target_degrees)
+    source_degree_to_ind = _degrees_to_degree_to_ind(source_degrees)
+    target_degree_to_ind = _degrees_to_degree_to_ind(target_degrees)
     return source_degree_to_ind, target_degree_to_ind
 
 
-def generate_degree_group_stats(source_degree_to_ind, target_degree_to_ind, matrix, scale=False, scaler=1):
+def _generate_degree_group_stats(source_degree_to_ind, target_degree_to_ind, matrix, scale=False, scaler=1):
     """
     Yield dictionaries with degree grouped stats
     """
@@ -66,7 +66,11 @@ def generate_degree_group_stats(source_degree_to_ind, target_degree_to_ind, matr
 
 def compute_summary_metrics(df):
     df['mean'] = df['sum'] / df['n']
+    df['mean-nz'] = df['sum'] / df['nnz']
     df['sd'] = ((df['sum_of_squares'] - df['sum'] ** 2 / df['n']) / (df['n'] - 1)) ** 0.5
+    df['sd-nz'] = ((df['sum_of_squares'] - df['sum'] ** 2 / df['nnz']) / (df['nnz'] - 1)) ** 0.5
+    df['beta'] = df['mean-nz'] / (df['sd-nz']) ** 2
+    df['alpha'] = df['beta'] * df['mean-nz']
     return df
 
 
@@ -110,14 +114,14 @@ def dwpc_to_degrees(graph, metapath, damping=0.5):
         continue
 
 
-def single_permutation_degree_group(permuted_hetmat, metapath, dwpc_mean, damping):
+def single_permutation_degree_group(permuted_hetmat, metapath, dwpc_mean, damping=0.5):
     """
     Compute degree-grouped permutations for a single permuted_hetmat,
     for one metapath.
     """
     _, _, matrix = hetmech.degree_weight.dwpc(permuted_hetmat, metapath, damping=damping, dense_threshold=0.7)
-    source_deg_to_ind, target_deg_to_ind = hetmech.degree_group.metapath_to_degree_dicts(permuted_hetmat, metapath)
-    row_generator = hetmech.degree_group.generate_degree_group_stats(
+    source_deg_to_ind, target_deg_to_ind = _metapath_to_degree_dicts(permuted_hetmat, metapath)
+    row_generator = _generate_degree_group_stats(
         source_deg_to_ind, target_deg_to_ind, matrix, scale=True, scaler=dwpc_mean)
     degree_grouped_df = (
         pandas.DataFrame(row_generator)
@@ -126,7 +130,7 @@ def single_permutation_degree_group(permuted_hetmat, metapath, dwpc_mean, dampin
     return degree_grouped_df
 
 
-def summarize_degree_grouped_permutations(graph, metapath, damping):
+def summarize_degree_grouped_permutations(graph, metapath, damping=0.5):
     """
     Combine degree-grouped permutation information from all permutations into
     a single file per metapath.
@@ -144,6 +148,6 @@ def summarize_degree_grouped_permutations(graph, metapath, damping):
             degree_stats_df = df
         else:
             degree_stats_df += df
-    degree_stats_df = hetmech.degree_group.compute_summary_metrics(degree_stats_df)
+    degree_stats_df = compute_summary_metrics(degree_stats_df)
     degree_stats_df.drop(columns=['sum', 'sum_of_squares'], inplace=True)
     return degree_stats_df
